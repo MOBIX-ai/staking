@@ -32,6 +32,7 @@ pub enum QueryMsg {
     QueryUnbondEntry { address: Addr },
     QueryConfig {},
     QueryState {},
+    QueryStakers {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
