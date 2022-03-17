@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Uint128, Uint64,
+    Order, Response, StdResult, Uint128, Uint64,
 };
 
 use crate::error::ContractError;
@@ -400,7 +400,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::QueryConfig {} => to_binary(&query_config(deps)?),
         QueryMsg::QueryState {} => to_binary(&query_state(deps)?),
+        QueryMsg::QueryStakers {} => to_binary(&query_stakers(deps)?),
     }
+}
+
+fn query_stakers(deps: Deps) -> StdResult<Vec<(Addr, UserEntry)>> {
+    let all_stakers: StdResult<Vec<_>> = USERS
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+
+    Ok(all_stakers.unwrap())
 }
 
 fn query_stake(deps: Deps, address: Addr) -> StdResult<Uint128> {
@@ -1310,5 +1319,59 @@ mod tests {
         let value = from_binary(&res).unwrap();
 
         assert_eq!(Uint128::from(10u128), value);
+    }
+
+    #[test]
+    fn test_query_stakers() {
+        let mut deps = mock_dependencies_with_balance(&coins(200, "nanomobx"));
+
+        let msg = InstantiateMsg {
+            denom: "nanomobx".to_string(),
+            reward_rate: Uint128::from(1u128),
+            paused: false,
+            unbonding_period: Uint64::from(1u64),
+        };
+
+        let creator_info = mock_info("creator", &coins(1000, "nanomobx"));
+        let env = mock_env();
+        let _res = instantiate(deps.as_mut(), env.clone(), creator_info.clone(), msg).unwrap();
+
+        let add_stake_msg = ExecuteMsg::AddStake {};
+        let _res = execute(
+            deps.as_mut(),
+            env.clone(),
+            creator_info,
+            add_stake_msg.clone(),
+        )
+        .unwrap();
+
+        let info = mock_info("anyone", &coins(10, "nanomobx"));
+        let _res = execute(deps.as_mut(), env.clone(), info, add_stake_msg).unwrap();
+
+        let res = query(deps.as_ref(), env.clone(), QueryMsg::QueryStakers {}).unwrap();
+
+        let value: Vec<(Addr, UserEntry)> = from_binary(&res).unwrap();
+
+        assert_eq!(
+            vec![
+                (
+                    Addr::unchecked("anyone"),
+                    UserEntry {
+                        amount: Uint128::from(10u128),
+                        rewards: Uint128::zero(),
+                        user_reward_per_token_paid: Uint128::zero()
+                    }
+                ),
+                (
+                    Addr::unchecked("creator"),
+                    UserEntry {
+                        amount: Uint128::from(1000u128),
+                        rewards: Uint128::zero(),
+                        user_reward_per_token_paid: Uint128::zero()
+                    }
+                )
+            ],
+            value
+        );
     }
 }

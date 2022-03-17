@@ -22,7 +22,7 @@ pub struct Config {
     pub reward_rate: Uint128,
     // nanomobx per second
     pub paused: bool,
-    pub unbonding_period: Uint64, // in nanoseconds, if you want to use seconds check fix/unbonding_period branch
+    pub unbonding_period: Uint64, // in seconds
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
